@@ -1,0 +1,53 @@
+name: Build PrintSwitch
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+permissions:
+  contents: write  # Needed to create releases
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install pyinstaller pystray Pillow wmi pywin32
+
+      - name: Build .exe
+        run: pyinstaller --onefile --noconsole --name PrintSwitch print_wifi_switcher.py
+
+      - name: Get short SHA
+        id: sha
+        shell: bash
+        run: echo "short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Delete existing 'latest' release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete latest --yes --cleanup-tag || true
+
+      - name: Create Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh release create latest \
+            --title "PrintSwitch (build ${{ steps.sha.outputs.short }})" \
+            --notes "Auto-built from commit ${{ github.sha }}.
+
+          Download **PrintSwitch.exe** below and run it. No installation needed.
+
+          To auto-start on boot: Win+R, type shell:startup, drop the .exe there." \
+            --latest \
+            dist/PrintSwitch.exe
